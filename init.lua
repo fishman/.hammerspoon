@@ -1,6 +1,7 @@
 -- Hammerspoon configuration, heavily influenced by sdegutis default configuration
 
 require "pomodoor"
+local bluetooth   = require("hs._asm.undocumented.bluetooth")
 
 -- init grid
 hs.grid.MARGINX 	= 0
@@ -91,3 +92,85 @@ end
 
 -- start app launch watcher
 hs.application.watcher.new(auto_tile):start()
+
+hs.hotkey.bind({"cmd", "alt", "ctrl"}, "H", function()
+
+  hs.application.launchOrFocus("iTerm")
+  hs.application.launchOrFocus("Safari")
+
+  local laptopScreen = "Color LCD"
+  local windowLayout = {
+      -- {"Sublime Text",  nil,  laptopScreen, {x=0,y=0,w=0.5,h=0.80}, nil, nil},
+      -- {"Safari",        nil,  laptopScreen, hs.layout.right50,      nil, nil},
+      -- {"Terminal",      nil,  laptopScreen, {x=0,y=0.80,w=0.5,h=0.20}, nil, nil},
+      {"iTerm2",        nil,  laptopScreen, {x=0,y=0,w=0.6,h=1},      nil, nil},
+      {"Safari",        nil,  laptopScreen, {x=0.6,y=0,w=0.4,h=1}, nil, nil},
+  }
+  hs.layout.apply(windowLayout)
+end)
+
+
+local wifiWatcher = nil
+local homeSSID = "o2-WLAN08"
+local lastSSID = hs.wifi.currentNetwork()
+
+function ssidChangedCallback()
+    newSSID = hs.wifi.currentNetwork()
+
+    if newSSID == homeSSID and lastSSID ~= homeSSID then
+        -- We just joined our home WiFi network
+        hs.audiodevice.defaultOutputDevice():setVolume(25)
+        hs.alert.show("Set the volume to 25")
+    elseif newSSID ~= homeSSID and lastSSID == homeSSID then
+        -- We just departed our home WiFi network
+        hs.audiodevice.defaultOutputDevice():setVolume(0)
+        hs.alert.show("Set the volume to 0")
+    end
+
+    lastSSID = newSSID
+end
+
+wifiWatcher = hs.wifi.watcher.new(ssidChangedCallback)
+wifiWatcher:start()
+
+function reloadConfig(files)
+    doReload = false
+    for _,file in pairs(files) do
+        if file:sub(-4) == ".lua" then
+            doReload = true
+        end
+    end
+    if doReload then
+        hs.reload()
+    end
+end
+hs.hotkey.bind(mash_shift, "b", function()
+    hs.alert("Bluetooth is power is now: "..
+        (bluetooth.power(not bluetooth.power()) and "On" or "Off"))
+    end, nil)
+hs.pathwatcher.new(os.getenv("HOME") .. "/.hammerspoon/", reloadConfig):start()
+
+-------------------------------------------------------------------------------------
+-- Battery Low warnings
+-------------------------------------------------------------------------------------
+local batWatcher = nil
+local lastBatVal = hs.battery.percentage()
+function batPercentageChangedCallback()
+  currentPercent = hs.battery.percentage()
+  if currentPercent == 10 and lastBatVal > 10 then
+    hs.alert.show("Getting low on juice...")
+  end
+  if currentPercent == 5 and lastBatVal > 5 then
+    hs.alert.show("Captain, she can't take any more!")
+  end
+  lastBatVal = currentPercent
+end
+batWatcher = hs.battery.watcher.new(batPercentageChangedCallback)
+batWatcher:start()
+
+
+--status, data, headers = hs.http.get("http://example.com")
+--hs.alert.show(status)
+--hs.alert.show(data)
+
+hs.alert.show("Config loaded")
